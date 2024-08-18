@@ -1,0 +1,137 @@
+Traceback (most recent call last):
+  File "E:\MainHomePage\.M_HomePage\Lib\site-packages\jupyter_cache\executors\utils.py", line 58, in single_nb_execution
+    executenb(
+  File "E:\MainHomePage\.M_HomePage\Lib\site-packages\nbclient\client.py", line 1314, in execute
+    return NotebookClient(nb=nb, resources=resources, km=km, **kwargs).execute()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\MainHomePage\.M_HomePage\Lib\site-packages\jupyter_core\utils\__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Dr\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "E:\MainHomePage\.M_HomePage\Lib\site-packages\nbclient\client.py", line 709, in async_execute
+    await self.async_execute_cell(
+  File "E:\MainHomePage\.M_HomePage\Lib\site-packages\nbclient\client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "E:\MainHomePage\.M_HomePage\Lib\site-packages\nbclient\client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+import numpy as np
+from scipy.stats import multivariate_normal
+import matplotlib.pyplot as plt
+
+  Helper functions
+def create_synthetic_data(num_targets, num_steps, noise_cov):
+    """Generate synthetic time series data for multiple targets."""
+    targets = []
+    for _ in range(num_targets):
+        x0 = np.random.randn(2)
+        target = [x0]
+        for _ in range(1, num_steps):
+            x_prev = target[-1]
+            x_new = x_prev + np.random.randn(2) * np.sqrt(noise_cov[0, 0])
+            target.append(x_new)
+        targets.append(np.array(target))
+    return np.array(targets)
+
+def gaussian_mixture_posterior(means, covariances, weights):
+    """Approximate posterior as a mixture of Gaussians."""
+    def posterior(x):
+        return sum(w * multivariate_normal(mean=m, cov=c).pdf(x)
+                   for m, c, w in zip(means, covariances, weights))
+    return posterior
+
+def update_phd(means, covariances, weights, measurements, R, birth_weight=0.01):
+    """Update step of GM-PHD filter."""
+    new_means = []
+    new_covariances = []
+    new_weights = []
+    
+      Update existing components
+    for i in range(len(weights)):
+        mean = means[i]
+        cov = covariances[i] + R
+        for z in measurements:
+            K = cov @ np.linalg.inv(cov + R)
+            mean_new = mean + K @ (z - mean)
+            cov_new = (np.eye(len(mean)) - K) @ cov
+            weight_new = weights[i] * multivariate_normal(mean=mean, cov=cov).pdf(z)
+            
+            new_means.append(mean_new)
+            new_covariances.append(cov_new)
+            new_weights.append(weight_new)
+    
+      Add birth components (new targets)
+    for z in measurements:
+        new_means.append(z)
+        new_covariances.append(R)
+        new_weights.append(birth_weight)
+    
+      Normalize weights
+    new_weights = np.array(new_weights)
+    new_weights /= np.sum(new_weights)
+    
+    return np.array(new_means), np.array(new_covariances), new_weights
+
+def prune(means, covariances, weights, weight_threshold=1e-3, max_components=100):
+    """Prune and merge components in the GM-PHD filter."""
+    indices = np.where(weights > weight_threshold)[0]
+    means = means[indices]
+    covariances = covariances[indices]
+    weights = weights[indices]
+    
+    if len(weights) > max_components:
+        indices = np.argsort(weights)[-max_components:]
+        means = means[indices]
+        covariances = covariances[indices]
+        weights = weights[indices]
+    
+    return means, covariances, weights
+
+  Parameters
+num_targets = 3
+num_steps = 20
+noise_cov = np.array([[0.1, 0], [0, 0.1]])
+R = np.array([[0.1, 0], [0, 0.1]])
+
+  Generate synthetic data
+synthetic_data = create_synthetic_data(num_targets, num_steps, noise_cov)
+
+  Initialize GM-PHD components
+means = [np.random.randn(2)]
+covariances = [np.eye(2)]
+weights = [1.0]
+
+  Run GM-PHD filter over time series
+for t in range(num_steps):
+      Simulate measurements (with noise)
+    measurements = synthetic_data[:, t] + np.random.randn(num_targets, 2) * np.sqrt(noise_cov[0, 0])
+    
+      Predict (for simplicity, assume constant velocity model)
+    means = [m for m in means]
+    covariances = [c + noise_cov for c in covariances]
+    
+      Update
+    means, covariances, weights = update_phd(means, covariances, weights, measurements, R)
+    
+      Prune and merge components
+    means, covariances, weights = prune(means, covariances, weights)
+    
+      Visualize current state
+    plt.scatter(measurements[:, 0], measurements[:, 1], c='red', label='Measurements')
+    plt.scatter([m[0] for m in means], [m[1] for m in means], c='blue', marker='x', label='Estimates')
+    plt.legend()
+    plt.title(f'Time Step {t+1}')
+    plt.show()
+
+------------------
+
+
+[1;36m  File [1;32m<string>:46[1;36m[0m
+[1;33m    Add birth components (new targets)[0m
+[1;37m                                      ^[0m
+[1;31mIndentationError[0m[1;31m:[0m unindent does not match any outer indentation level
+
+
